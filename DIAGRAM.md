@@ -2,12 +2,35 @@
 
 ```mermaid
 flowchart TD
-    Client[Klien / Postman / smoke-test.js] --> GW[API Gateway :8080]
-    GW -->|/product-service/*| PS[Product Service :3000]
-    GW -->|/order-service/*| OS[Order Service :3001]
-    OS -->|HTTP POST /products/:id/reserve\nTimeout 2 detik| PS
-    PS --- PD[(Data produk di memori)]
-    OS --- OD[(Data pesanan di memori)]
+    CLIENT["Client / User"]
+    GW["API Gateway<br/>Port 8080"]
+
+    PS["Product Service<br/>Port 3000"]
+    OS["Order Service<br/>Port 3001"]
+
+    EX[["RabbitMQ Exchange<br/>orders (fanout)"]]
+
+    NQ[["Queue<br/>notification-queue"]]
+    AQ[["Queue<br/>audit-queue"]]
+
+    NS["Notification Service"]
+    AS["Audit Consumer"]
+
+    CLIENT -->|"HTTP Request"| GW
+
+    GW -->|"/product-service/products"| PS
+    GW -->|"/order-service/orders"| OS
+
+    OS -->|"Reserve stock (HTTP)"| PS
+    PS -->|"Stock response"| OS
+
+    OS -->|"Publish order.created"| EX
+
+    EX -->|"Binding"| NQ
+    EX -->|"Binding"| AQ
+
+    NQ --> NS
+    AQ --> AS
 ```
 
 Aturan batas service:
