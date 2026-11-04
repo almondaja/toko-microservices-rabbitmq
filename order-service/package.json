@@ -8,6 +8,7 @@
     "start": "node order-service.js"
   },
   "dependencies": {
+    "amqplib": "^2.2.1",
     "express": "^4.21.2"
   }
 }
