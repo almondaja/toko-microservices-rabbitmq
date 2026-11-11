@@ -1,10 +1,14 @@
+
 const express = require("express");
 const amqp = require("amqplib");
+const swaggerJsdoc = require("swagger-jsdoc");
+const swaggerUi = require("swagger-ui-express");
 
 const app = express();
 app.use(express.json());
 
-const PRODUCT_URL = process.env.PRODUCT_SERVICE_URL || "http://127.0.0.1:3000";
+const PRODUCT_URL =
+  process.env.PRODUCT_SERVICE_URL || "http://127.0.0.1:3000";
 
 const AMQP_URL = process.env.AMQP_URL;
 const EXCHANGE = "orders";
@@ -16,7 +20,155 @@ let rabbitChannel = null;
 let reconnectTimer = null;
 let connecting = false;
 
-// Menghubungkan Order Service ke RabbitMQ
+// ==========================================
+// SWAGGER CONFIGURATION
+// ==========================================
+
+const swaggerSpec = swaggerJsdoc({
+  definition: {
+    openapi: "3.0.3",
+    info: {
+      title: "Order Service",
+      version: "1.0.0",
+      description: "Pembuatan dan daftar pesanan",
+    },
+    servers: [
+      { url: "http://localhost:3001" },
+    ],
+  },
+  apis: [__filename],
+});
+
+app.get("/openapi.json", (req, res) => {
+  res.json(swaggerSpec);
+});
+
+app.use(
+  "/docs",
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec)
+);
+
+// ==========================================
+// OPENAPI DOCUMENTATION
+// ==========================================
+
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     OrderRequest:
+ *       type: object
+ *       required:
+ *         - productId
+ *         - qty
+ *       properties:
+ *         productId:
+ *           type: integer
+ *           example: 1
+ *         qty:
+ *           type: integer
+ *           minimum: 1
+ *           example: 2
+ *
+ *     Order:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *           example: 1
+ *         productId:
+ *           type: integer
+ *           example: 1
+ *         productName:
+ *           type: string
+ *           example: Keyboard Mekanik
+ *         qty:
+ *           type: integer
+ *           example: 2
+ *         total:
+ *           type: integer
+ *           example: 900000
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *
+ *     Error:
+ *       type: object
+ *       properties:
+ *         error:
+ *           type: string
+ *           example: Stok tidak cukup
+ *
+ * /orders:
+ *   post:
+ *     tags:
+ *       - Orders
+ *     summary: Buat pesanan baru
+ *     description: Memanggil product-service untuk mengurangi stok, lalu menyimpan pesanan dan mengirim event order.created ke RabbitMQ.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/OrderRequest'
+ *     responses:
+ *       201:
+ *         description: Pesanan berhasil dibuat
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Order'
+ *       400:
+ *         description: Input tidak valid
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Produk tidak ditemukan
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       409:
+ *         description: Stok tidak cukup
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       502:
+ *         description: Respons product-service tidak valid
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       503:
+ *         description: product-service tidak tersedia
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *
+ *   get:
+ *     tags:
+ *       - Orders
+ *     summary: Daftar semua pesanan
+ *     responses:
+ *       200:
+ *         description: Berhasil mendapatkan daftar pesanan
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Order'
+ */
+
+// ==========================================
+// RABBITMQ CONNECTION
+// ==========================================
+
 async function connectRabbitMQ() {
   if (connecting || rabbitChannel) return;
 
@@ -67,7 +219,10 @@ async function connectRabbitMQ() {
   }
 }
 
-// Mencoba menghubungkan kembali jika koneksi terputus
+// ==========================================
+// RABBITMQ RECONNECT
+// ==========================================
+
 function scheduleReconnect() {
   if (reconnectTimer) return;
 
@@ -77,7 +232,10 @@ function scheduleReconnect() {
   }, 5000);
 }
 
-// Mengirim event order.created ke exchange orders
+// ==========================================
+// PUBLISH ORDER CREATED EVENT
+// ==========================================
+
 async function publishOrderCreated(order) {
   if (!rabbitChannel) {
     console.error("Event tidak terkirim: RabbitMQ belum terhubung");
@@ -103,11 +261,14 @@ async function publishOrderCreated(order) {
         (error) => {
           if (error) reject(error);
           else resolve();
-        },
+        }
       );
     });
 
-    console.log(`Event order.created terkirim: order-${order.id}`);
+    console.log(
+      `Event order.created terkirim: order-${order.id}`
+    );
+
     return true;
   } catch (error) {
     console.error("Gagal mengirim event:", error.message);
@@ -115,7 +276,10 @@ async function publishOrderCreated(order) {
   }
 }
 
-// Membuat pesanan
+// ==========================================
+// POST: MEMBUAT PESANAN
+// ==========================================
+
 app.post("/orders", async (req, res) => {
   const { productId, qty } = req.body || {};
 
@@ -140,7 +304,7 @@ app.post("/orders", async (req, res) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ qty }),
         signal: AbortSignal.timeout(2000),
-      },
+      }
     );
   } catch (error) {
     return res.status(503).json({
@@ -179,10 +343,17 @@ app.post("/orders", async (req, res) => {
   return res.status(201).json(order);
 });
 
-// Melihat daftar pesanan
+// ==========================================
+// GET: DAFTAR PESANAN
+// ==========================================
+
 app.get("/orders", (req, res) => {
   res.json(orders);
 });
+
+// ==========================================
+// START SERVER
+// ==========================================
 
 const PORT = Number(process.env.PORT || 3001);
 

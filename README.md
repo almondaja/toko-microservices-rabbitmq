@@ -1,89 +1,210 @@
-# Praktikum: Memecah Aplikasi Menjadi Microservices
+# Toko Microservices
 
-Implementasi mengikuti instruksi tugas: contoh toko dipisah menjadi `product-service` (port 3000) dan `order-service` (port 3001), keduanya diakses melalui gateway (port 8080). Data masih berupa array di memori, sesuai bahan praktikum.
+## 1. Deskripsi Proyek
 
-Gateway juga memuat rate limiting dan API key sebagai kelanjutan konteks Lab 08. API key default untuk pengujian lokal: `praktikum-key`.
+Toko Microservices merupakan aplikasi sederhana berbasis arsitektur microservices yang membagi fungsi aplikasi toko menjadi beberapa service terpisah. Setiap service memiliki tanggung jawab masing-masing dan komunikasi antarlayanan dilakukan melalui API Gateway maupun message broker RabbitMQ.
 
-## Persyaratan
-- Node.js 18 atau lebih baru
-- npm
+Proyek ini dibuat untuk menerapkan konsep:
+- Microservices Architecture
+- API Gateway dan Reverse Proxy
+- Dokumentasi API menggunakan OpenAPI dan Swagger
+- Komunikasi asynchronous menggunakan RabbitMQ
+- Event-driven architecture
 
-## Struktur folder
+## 2. Arsitektur Sistem
+
+Proyek terdiri dari empat service utama:
+
+| Service | Port | Fungsi |
+|---|---:|---|
+| Product Service | 3000 | Mengelola data produk dan reservasi stok |
+| Order Service | 3001 | Mengelola pesanan dan mengirim event order |
+| API Gateway | 5000 | Menjadi pintu masuk API, routing, rate limiting, dan API Key |
+| Notification Service | - | Menerima event RabbitMQ dan memproses notifikasi |
+
+API Gateway meneruskan permintaan ke Product Service dan Order Service. Ketika pesanan berhasil dibuat, Order Service mengirim event `order.created` melalui RabbitMQ untuk diproses oleh Notification Service.
+
+## 3. Struktur Folder
+
 ```text
-toko/
-├── gateway/
-│   ├── gateway.js
-│   └── package.json
+workspace/
 ├── product-service/
-│   ├── product-service.js
-│   └── package.json
+│   └── product-service.js
 ├── order-service/
-│   ├── order-service.js
-│   └── package.json
+│   └── order-service.js
+├── gateway/
+│   └── gateway.js
+├── notification-service/
+│   └── notification-service.js
+├── start-services.js
 ├── smoke-test.js
-├── .gitignore
+├── openapi-gateway.json
+├── DIAGRAM.md
+├── package.json
 └── README.md
 ```
 
-## 1. Instalasi
-Buka terminal di folder `toko`, lalu jalankan:
+## 4. Teknologi yang Digunakan
+
+- Node.js
+- Express.js
+- HTTP Proxy Middleware
+- Swagger UI
+- OpenAPI 3.0
+- RabbitMQ
+- amqplib
+- Postman
+
+## 5. Instalasi
+
+Pastikan Node.js dan npm sudah terpasang.
+
+Clone repository:
+
 ```bash
-cd product-service && npm install
-cd ../order-service && npm install
-cd ../gateway && npm install
+git clone https://github.com/almondaja/toko-microservices-rabbitmq.git
+cd toko-microservices-rabbitmq
 ```
 
-## 2. Menjalankan service
-Buka **4 terminal** terpisah, semuanya dari folder proyek `toko`.
+Install dependency pada folder utama dan masing-masing service:
 
-Terminal 1:
 ```bash
+npm install
+
 cd product-service
-npm start
-```
+npm install
+cd ..
 
-Terminal 2:
-```bash
 cd order-service
-npm start
-```
+npm install
+cd ..
 
-Terminal 3:
-```bash
 cd gateway
+npm install
+cd ..
+
+cd notification-service
+npm install
+cd ..
+```
+
+## 6. Konfigurasi Environment
+
+Sebelum menjalankan aplikasi, siapkan alamat koneksi RabbitMQ.
+
+Variabel yang digunakan:
+
+| Variabel | Fungsi | Nilai Default |
+|---|---|---|
+| `AMQP_URL` | Alamat koneksi RabbitMQ | Notification Service menggunakan `amqp://localhost` |
+| `API_KEY` | Kunci akses API Gateway | `praktikum-key` |
+| `PRODUCT_SERVICE_URL` | Alamat Product Service dari Order Service | `http://127.0.0.1:3000` |
+| `PRODUCT_SERVICE_TARGET` | Target proxy Product Service | `http://127.0.0.1:3000` |
+| `ORDER_SERVICE_TARGET` | Target proxy Order Service | `http://127.0.0.1:3001` |
+
+Atur `AMQP_URL` menggunakan alamat RabbitMQ yang tersedia. Gunakan alamat yang sama untuk Order Service dan Notification Service.
+
+Untuk Replit, konfigurasi dapat dimasukkan melalui Secrets atau Environment Variables.
+
+## 7. Menjalankan Aplikasi
+
+Pastikan RabbitMQ sudah aktif dan dapat diakses.
+
+### A. Menjalankan Product Service, Order Service, dan API Gateway
+
+Dari folder utama:
+
+```bash
 npm start
 ```
 
-Terminal 4:
+Perintah tersebut menjalankan `start-services.js`, yang mengaktifkan:
+
+- Product Service pada port 3000.
+- Order Service pada port 3001.
+- API Gateway pada port 5000.
+
+### B. Menjalankan Notification Service
+
+Buka terminal terpisah dari folder utama:
+
 ```bash
-node smoke-test.js
+node notification-service/notification-service.js
 ```
 
-Jangan menjalankan monolit bersamaan dengan product-service karena keduanya memakai port 3000.
+Notification Service akan terhubung ke RabbitMQ dan menunggu event yang diterbitkan oleh Order Service.
 
-## 3. Endpoint melalui gateway
-Sertakan header `X-API-Key: praktikum-key` untuk route service.
-- `GET http://localhost:8080/product-service/products`
-- `GET http://localhost:8080/product-service/products/1`
-- `POST http://localhost:8080/order-service/orders` dengan JSON `{"productId":1,"qty":2}`
-- `GET http://localhost:8080/order-service/orders`
+## 8. Dokumentasi API
 
-API key dapat diganti melalui environment variable `API_KEY`. Rate limiter contoh membatasi hingga 100 request per IP per 15 menit.
+Dokumentasi API menggunakan OpenAPI 3.0 dan Swagger UI.
 
-## 4. Hasil yang diharapkan
-- Jumlah produk: 3
-- Pembuatan order: HTTP 201
-- Stok produk 1 berkurang sesuai kuantitas order
-- Saat `product-service` dimatikan, `POST /order-service/orders` menghasilkan HTTP 503
-- Saat `product-service` mati, `GET /order-service/orders` tetap menghasilkan HTTP 200
+| Service | Swagger UI | OpenAPI JSON |
+|---|---|---|
+| Product Service | `/docs` pada port 3000 | `/openapi.json` pada port 3000 |
+| Order Service | `/docs` pada port 3001 | `/openapi.json` pada port 3001 |
+| API Gateway | `/docs` pada port 5000 | `/openapi.json` pada port 5000 |
 
-**Catatan penting:** data disimpan di memori, jadi akan kembali ke nilai awal saat service di-restart. Smoke test membuat order baru setiap kali dijalankan.
+Contoh alamat lokal:
 
-## 5. Commit ke GitHub
-Setelah semua berjalan, inisialisasi Git di folder `toko`, lalu push ke repository yang kamu miliki ketika Git server sudah dapat diakses:
-```bash
-git init
-git add .
-git commit -m "Implementasi microservices toko dan API gateway"
+```text
+http://localhost:5000/docs
+http://localhost:5000/openapi.json
 ```
-File `node_modules` dan `.env` dikecualikan oleh `.gitignore`.
+
+File `openapi-gateway.json` merupakan hasil ekspor dokumentasi API Gateway yang dapat digunakan untuk validasi melalui Swagger Editor dan diimpor ke Postman.
+
+## 9. Keamanan API Gateway
+
+API Gateway menerapkan beberapa mekanisme keamanan:
+
+1. **API Key:** Memeriksa header `X-API-Key` pada permintaan API.
+2. **Rate Limiting:** Membatasi jumlah permintaan untuk mengurangi penyalahgunaan API.
+3. **Reverse Proxy:** Meneruskan permintaan ke service tujuan berdasarkan endpoint.
+
+Contoh header API Key:
+
+```http
+X-API-Key: praktikum-key
+```
+
+Jika menggunakan API Key yang berbeda, sesuaikan dengan nilai environment variable `API_KEY`.
+
+## 10. Pengujian API
+
+Pengujian dapat dilakukan menggunakan Postman atau Swagger UI.
+
+Beberapa endpoint yang tersedia melalui API Gateway:
+
+| Method | Endpoint | Fungsi |
+|---|---|---|
+| GET | `/product-service/products` | Melihat seluruh produk |
+| GET | `/product-service/products/{id}` | Melihat detail produk |
+| POST | `/product-service/products/{id}/reserve` | Melakukan reservasi stok |
+| GET | `/order-service/orders` | Melihat seluruh pesanan |
+| POST | `/order-service/orders` | Membuat pesanan |
+
+Jalankan pengujian otomatis dari folder utama:
+
+```bash
+npm test
+```
+
+Pengujian mencakup pemeriksaan produk dan proses pemesanan melalui API Gateway.
+
+## 11. Komunikasi RabbitMQ
+
+Order Service menggunakan RabbitMQ untuk mengirim event ketika pesanan berhasil dibuat.
+
+Event yang digunakan:
+
+```text
+order.created
+```
+
+Notification Service bertindak sebagai consumer yang menerima dan memproses event tersebut.
+
+Dengan pendekatan ini, proses notifikasi tidak harus dijalankan secara langsung dalam alur permintaan pembuatan pesanan.
+
+## 12. Kesimpulan
+
+Proyek ini menerapkan arsitektur microservices dengan pemisahan tanggung jawab pada setiap service. API Gateway digunakan untuk mengatur akses dan routing permintaan, sedangkan RabbitMQ digunakan untuk komunikasi asynchronous antarlayanan. Dokumentasi OpenAPI dan Swagger membantu menjelaskan kontrak API serta mempermudah proses pengujian menggunakan Postman.
