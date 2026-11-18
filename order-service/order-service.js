@@ -6,6 +6,7 @@ const swaggerUi = require("swagger-ui-express");
 
 const app = express();
 app.use(express.json());
+require("./observability")(app, "order-service");
 
 const PRODUCT_URL =
   process.env.PRODUCT_SERVICE_URL || "http://127.0.0.1:3000";
@@ -301,7 +302,10 @@ app.post("/orders", async (req, res) => {
       `${PRODUCT_URL}/products/${productId}/reserve`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Request-Id": req.id,
+        },
         body: JSON.stringify({ qty }),
         signal: AbortSignal.timeout(2000),
       }

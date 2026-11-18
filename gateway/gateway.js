@@ -1,4 +1,5 @@
 const express = require("express");
+const crypto = require("crypto");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 const swaggerUi = require("swagger-ui-express");
 
@@ -20,6 +21,8 @@ const MAX_REQUESTS = 100;
 const requestCounts = new Map();
 
 app.use((req, res, next) => {
+  if (req.path === "/health") return next();
+
   const now = Date.now();
   const key = req.ip || req.socket.remoteAddress || "unknown";
 
@@ -49,6 +52,7 @@ app.use((req, res, next) => {
   // Dokumentasi dan halaman utama bisa diakses tanpa API key.
   if (
     req.path === "/" ||
+    req.path === "/health" ||
     req.path === "/docs" ||
     req.path.startsWith("/docs/") ||
     req.path === "/openapi.json"
@@ -69,7 +73,47 @@ app.use((req, res, next) => {
 });
 
 // ==========================================
-// 3. MENGGABUNGKAN OPENAPI SPECIFICATION
+// 3. REQUEST ID + HEALTH (sebelum proxy)
+// ==========================================
+
+app.use((req, res, next) => {
+  const id = req.headers["x-request-id"] || crypto.randomUUID();
+  req.headers["x-request-id"] = id;
+  res.setHeader("X-Request-Id", id);
+
+  if (req.path !== "/health") {
+    const t0 = process.hrtime.bigint();
+    res.on("finish", () => {
+      const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+      console.log(
+        JSON.stringify({
+          time: new Date().toISOString(),
+          service: "gateway",
+          id,
+          method: req.method,
+          path: req.originalUrl,
+          status: res.statusCode,
+          ms: Math.round(ms),
+        }),
+      );
+    });
+  }
+
+  next();
+});
+
+app.get("/health", (req, res) =>
+  res.json({ status: "ok", service: "gateway" }),
+);
+
+function forwardRequestId(proxyReq, req) {
+  if (req.headers["x-request-id"]) {
+    proxyReq.setHeader("X-Request-Id", req.headers["x-request-id"]);
+  }
+}
+
+// ==========================================
+// 4. MENGGABUNGKAN OPENAPI SPECIFICATION
 // ==========================================
 
 async function getOpenAPISpec() {
@@ -161,7 +205,7 @@ app.get("/openapi.json", async (req, res) => {
 });
 
 // ==========================================
-// 4. SWAGGER UI
+// 5. SWAGGER UI
 // ==========================================
 
 app.use(
@@ -176,7 +220,7 @@ app.use(
 );
 
 // ==========================================
-// 5. PROXY PRODUCT SERVICE
+// 6. PROXY PRODUCT SERVICE
 // ==========================================
 
 app.use(
@@ -187,11 +231,14 @@ app.use(
     pathRewrite: {
       "^/product-service": "",
     },
+    on: {
+      proxyReq: forwardRequestId,
+    },
   }),
 );
 
 // ==========================================
-// 6. PROXY ORDER SERVICE
+// 7. PROXY ORDER SERVICE
 // ==========================================
 
 app.use(
@@ -202,11 +249,14 @@ app.use(
     pathRewrite: {
       "^/order-service": "",
     },
+    on: {
+      proxyReq: forwardRequestId,
+    },
   }),
 );
 
 // ==========================================
-// 7. HALAMAN UTAMA GATEWAY
+// 8. HALAMAN UTAMA GATEWAY
 // ==========================================
 
 app.get("/", (req, res) => {
@@ -216,6 +266,7 @@ app.get("/", (req, res) => {
     routes: {
       products: "/product-service/products",
       orders: "/order-service/orders",
+      health: "/health",
       documentation: "/docs",
       openapi: "/openapi.json",
     },
@@ -225,7 +276,7 @@ app.get("/", (req, res) => {
 });
 
 // ==========================================
-// 8. MENJALANKAN GATEWAY
+// 9. MENJALANKAN GATEWAY
 // ==========================================
 
 const PORT = Number(process.env.PORT || 8080);

@@ -1,3 +1,5 @@
+![CI](https://github.com/almondaja/toko-microservices-rabbitmq/actions/workflows/ci.yml/badge.svg)
+
 # Toko Microservices
 
 ## 1. Deskripsi Proyek
@@ -183,13 +185,19 @@ Beberapa endpoint yang tersedia melalui API Gateway:
 | GET | `/order-service/orders` | Melihat seluruh pesanan |
 | POST | `/order-service/orders` | Membuat pesanan |
 
-Jalankan pengujian otomatis dari folder utama:
+Jalankan pengujian otomatis dari folder utama (service harus sudah menyala):
 
 ```bash
 npm test
 ```
 
-Pengujian mencakup pemeriksaan produk dan proses pemesanan melalui API Gateway.
+Perintah itu menjalankan `tests/api.test.js` terhadap gateway di port 8080. Di Replit, setelah `npm start`, gateway ada di port 5000:
+
+```bash
+npm run test:replit
+```
+
+Pengujian lama yang hanya mencetak hasil masih ada lewat `npm run smoke`.
 
 ## 11. Komunikasi RabbitMQ
 
@@ -207,4 +215,37 @@ Dengan pendekatan ini, proses notifikasi tidak harus dijalankan secara langsung 
 
 ## 12. Kesimpulan
 
-Proyek ini menerapkan arsitektur microservices dengan pemisahan tanggung jawab pada setiap service. API Gateway digunakan untuk mengatur akses dan routing permintaan, sedangkan RabbitMQ digunakan untuk komunikasi asynchronous antarlayanan. Dokumentasi OpenAPI dan Swagger membantu menjelaskan kontrak API serta mempermudah proses pengujian menggunakan Postman.
+Proyek ini menerapkan arsitektur microservices dengan pemisahan tanggung jawab pada setiap service. API Gateway digunakan untuk mengatur akses dan routing permintaan, sedangkan RabbitMQ digunakan untuk komunikasi asynchronous antarlayanan. Dokumentasi OpenAPI dan Swagger membantu menjelaskan kontrak API serta mempermudah proses pengujian menggunakan Postman. Health check, metrik, log ber-ID permintaan, dan test otomatis di GitHub Actions membuat sistem bisa membuktikan dirinya sehat setiap kali kode di-push.
+
+## 13. Automated Testing, Health, dan Monitoring
+
+Setiap service (`product-service` dan `order-service`) menyediakan:
+
+- `GET /health` — status proses
+- `GET /metrics` — jumlah request, error 5xx, dan rata-rata latensi
+- log JSON per permintaan, termasuk `id` yang sama dengan header `X-Request-Id`
+
+Gateway membuat `X-Request-Id` bila klien tidak mengirimnya, meneruskannya ke service, dan menjawab `GET /health`. Order service meneruskan ID yang sama saat memanggil product service.
+
+Jalankan seluruh service, lalu dari folder akar:
+
+```bash
+npm test
+```
+
+Di Replit, `npm start` menaruh gateway di port 5000. Dari folder akar:
+
+```bash
+npm run test:replit
+npm run monitor:replit
+```
+
+`monitor:replit` sama dengan `GATEWAY_URL=http://127.0.0.1:5000 node monitor.js`. Product service tetap di port 3000 dan order service di port 3001.
+
+Jika service dijalankan satu per satu tanpa `start-services.js`, gateway memakai port 8080. Saat itu cukup `npm test` dan `npm run monitor`.
+
+`monitor.js` memanggil `/health` tiap 5 detik dan mencetak `ALERT` / `RECOVERED` saat status berubah.
+
+GitHub Actions (`.github/workflows/ci.yml`) menyalakan ketiga service di port 3000, 3001, dan 8080, lalu menjalankan `npm test` pada setiap push. Refleksi tugas ada di [REFLEKSI.md](REFLEKSI.md).
+
+Jika badge di baris pertama masih menunjuk repository lain, ganti `almondaja/toko-microservices-rabbitmq` dengan `USERNAME/REPO` milik kelompok.

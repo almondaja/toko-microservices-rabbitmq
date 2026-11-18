@@ -1,0 +1,7 @@
+# Refleksi — Automated Testing & Monitoring
+
+Test otomatis ini hanya melihat kontrak HTTP yang sudah ditulis: status, bentuk JSON, dan perubahan stok pada satu alur yang berurutan. Test tidak akan menangkap tampilan yang rusak, pelambatan saat banyak pengguna bersamaan, kondisi balapan dua pesanan yang mengurangi stok yang sama, pesan RabbitMQ yang hilang, atau data yang kosong setelah proses dimatikan, karena data masih disimpan di memori dan consumer notifikasi tidak ikut diuji.
+
+ID permintaan penting pada microservices karena satu tindakan pengguna melewati gateway, order-service, dan product-service; tanpa ID yang sama, tiga baris log itu terlihat seperti tiga kejadian yang tidak berhubungan. Keterbatasannya, log yang hanya ditulis ke terminal hilang begitu proses berhenti, tidak bisa dicari lintas hari, dan tidak terkumpul di satu tempat, sehingga di produksi ID itu baru berguna jika log dikirim ke sistem terpusat.
+
+Risiko `/health` yang selalu menjawab `ok` tanpa memeriksa dependensi adalah monitor dan penyeimbang beban menganggap service sehat padahal database, RabbitMQ, atau service lain sudah mati, sehingga permintaan tetap masuk dan pengguna menerima kegagalan. Satu hal yang bisa lulus di laptop tetapi gagal di CI adalah lupa men-commit `observability.js` atau `package-lock.json`: di laptop modul itu sudah ada di disk dan `node_modules` sudah terpasang, sedangkan mesin GitHub bersih dan Linux membedakan huruf besar-kecil, sehingga service gagal menyala dan langkah tunggu health menjadi merah.

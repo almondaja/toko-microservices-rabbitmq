@@ -4,6 +4,7 @@ const swaggerUi = require("swagger-ui-express");
 
 const app = express();
 app.use(express.json());
+require("./observability")(app, "product-service");
 
 // ==========================================
 // DATA PRODUK
@@ -211,7 +212,7 @@ app.get("/products/:id", (req, res) => {
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
- *       409:
+ *       400:
  *         description: Stok tidak cukup
  *         content:
  *           application/json:
