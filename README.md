@@ -281,7 +281,7 @@ Di macOS/Linux:
 cp .env.example .env
 ```
 
-Buka `.env`, lalu isi `RABBITMQ_USER` dan `RABBITMQ_PASSWORD` dengan kredensial lokal yang kuat. Gunakan karakter alfanumerik (huruf dan angka) agar nilai tersebut dapat digunakan langsung pada URL AMQP. File `.env` sudah masuk `.gitignore`; jangan commit atau membagikan file ini. `.env.example` hanya template dan bukan tempat menyimpan kredensial asli. Untuk memastikan `npm test` pada komputer host memakai key yang sama, pertahankan `API_KEY=praktikum-key`. Proses npm pada host tidak otomatis membaca file `.env`; jika API Key diubah, atur juga environment variable `API_KEY` pada terminal tempat `npm test` dijalankan.
+Buka `.env`, lalu isi `RABBITMQ_USER` dan `RABBITMQ_PASSWORD` dengan kredensial lokal yang kuat. Gunakan karakter alfanumerik (huruf dan angka) agar nilai tersebut dapat digunakan langsung pada URL AMQP. File `.env` sudah masuk `.gitignore`; jangan commit atau membagikan file ini. `.env.example` hanya template dan bukan tempat menyimpan kredensial asli. Untuk memastikan `npm test` pada komputer host memakai key yang sama, pertahankan `API_KEY=praktikum-key`. Proses npm pada host tidak otomatis membaca file `.env`; jika API Key diubah, atur juga environment variable `API_KEY` pada terminal tempat `npm test` dijalankan. Jika port `8080` atau `15672` sudah dipakai, ubah `GATEWAY_PORT` atau `RABBITMQ_MANAGEMENT_PORT` di `.env`; nilai default tetap `8080` dan `15672`.
 
 ### Build dan jalankan
 
