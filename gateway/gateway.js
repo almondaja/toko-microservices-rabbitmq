@@ -5,12 +5,19 @@ const swaggerUi = require("swagger-ui-express");
 
 const app = express();
 
-// URL service
+// URL service: gunakan nama host localhost saat dijalankan manual,
+// dan nama service Compose saat berjalan di dalam jaringan Docker.
 const PRODUCT_TARGET =
-  process.env.PRODUCT_SERVICE_TARGET || "http://127.0.0.1:3000";
+  process.env.PRODUCT_SERVICE_URL || "http://localhost:3000";
 
 const ORDER_TARGET =
-  process.env.ORDER_SERVICE_TARGET || "http://127.0.0.1:3001";
+  process.env.ORDER_SERVICE_URL || "http://localhost:3001";
+
+const PRODUCT_DOC_URL =
+  process.env.PRODUCT_DOC_URL || `${PRODUCT_TARGET}/openapi.json`;
+
+const ORDER_DOC_URL =
+  process.env.ORDER_DOC_URL || `${ORDER_TARGET}/openapi.json`;
 
 // ==========================================
 // 1. RATE LIMITING
@@ -118,10 +125,10 @@ function forwardRequestId(proxyReq, req) {
 
 async function getOpenAPISpec() {
   const [productResponse, orderResponse] = await Promise.all([
-    fetch(`${PRODUCT_TARGET}/openapi.json`, {
+    fetch(PRODUCT_DOC_URL, {
       signal: AbortSignal.timeout(2000),
     }),
-    fetch(`${ORDER_TARGET}/openapi.json`, {
+    fetch(ORDER_DOC_URL, {
       signal: AbortSignal.timeout(2000),
     }),
   ]);
