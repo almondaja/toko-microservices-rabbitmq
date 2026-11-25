@@ -1,0 +1,30 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      RABBITMQ_USER: toko_ci
+      RABBITMQ_PASSWORD: ciPassword12345
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build dan nyalakan stack
+        run: docker compose up -d --build --wait
+
+      - name: Run tests
+        run: npm test
+
+      - name: Tampilkan log
+        if: always()
+        run: docker compose logs
+
+      - name: Matikan stack
+        if: always()
+        run: docker compose down -v
